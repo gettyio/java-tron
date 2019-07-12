@@ -21,7 +21,7 @@ jobs:
     docker:
     - image: docker:stable
       environment:
-        $TRON_VERSION: 3.6.1
+        TRON_VERSION: 3.6.1
 
     working_directory: /tmp/repo
 
