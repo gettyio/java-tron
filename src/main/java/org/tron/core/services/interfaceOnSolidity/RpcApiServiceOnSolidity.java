@@ -2,6 +2,7 @@ package org.tron.core.services.interfaceOnSolidity;
 
 import com.google.protobuf.ByteString;
 import io.grpc.Server;
+import io.grpc.ServerInterceptors;
 import io.grpc.netty.NettyServerBuilder;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
@@ -42,6 +43,8 @@ import org.tron.protos.Protocol.DynamicProperties;
 import org.tron.protos.Protocol.Exchange;
 import org.tron.protos.Protocol.Transaction;
 import org.tron.protos.Protocol.TransactionInfo;
+import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
+import me.dinowernli.grpc.prometheus.Configuration;
 
 @Slf4j(topic = "API")
 public class RpcApiServiceOnSolidity implements Service {
@@ -66,8 +69,12 @@ public class RpcApiServiceOnSolidity implements Service {
   @Override
   public void start() {
     try {
+      // adds java-grpc-prometheus interceptor
+      MonitoringServerInterceptor monitoringInterceptor = MonitoringServerInterceptor
+          .create(Configuration.allMetrics());
       NettyServerBuilder serverBuilder = NettyServerBuilder.forPort(port)
-          .addService(new DatabaseApi());
+          .addService(ServerInterceptors
+            .intercept(new DatabaseApi(), monitoringInterceptor));
 
       Args args = Args.getInstance();
 
@@ -76,7 +83,8 @@ public class RpcApiServiceOnSolidity implements Service {
             .executor(Executors.newFixedThreadPool(args.getRpcThreadNum()));
       }
 
-      serverBuilder = serverBuilder.addService(new WalletSolidityApi());
+      serverBuilder = serverBuilder.addService(ServerInterceptors
+        .intercept(new WalletSolidityApi(), monitoringInterceptor));
 
       // Set configs from config.conf or default value
       serverBuilder

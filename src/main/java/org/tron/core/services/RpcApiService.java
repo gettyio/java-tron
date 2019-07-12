@@ -4,6 +4,7 @@ import com.google.common.base.Preconditions;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Message;
 import io.grpc.Server;
+import io.grpc.ServerInterceptors;
 import io.grpc.netty.NettyServerBuilder;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
@@ -101,6 +102,8 @@ import org.tron.protos.Protocol.Transaction;
 import org.tron.protos.Protocol.Transaction.Contract.ContractType;
 import org.tron.protos.Protocol.TransactionInfo;
 import org.tron.protos.Protocol.TransactionSign;
+import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
+import me.dinowernli.grpc.prometheus.Configuration;
 
 @Component
 @Slf4j(topic = "API")
@@ -141,8 +144,12 @@ public class RpcApiService implements Service {
   @Override
   public void start() {
     try {
+      // adds java-grpc-prometheus interceptor
+      MonitoringServerInterceptor monitoringInterceptor = MonitoringServerInterceptor
+        .create(Configuration.allMetrics());
       NettyServerBuilder serverBuilder = NettyServerBuilder.forPort(port)
-          .addService(databaseApi);
+        .addService(ServerInterceptors
+          .intercept(databaseApi, monitoringInterceptor));
 
       Args args = Args.getInstance();
 
@@ -152,12 +159,15 @@ public class RpcApiService implements Service {
       }
 
       if (args.isSolidityNode()) {
-        serverBuilder = serverBuilder.addService(walletSolidityApi);
+        serverBuilder = serverBuilder.addService(ServerInterceptors
+          .intercept(walletSolidityApi, monitoringInterceptor));
         if (args.isWalletExtensionApi()) {
-          serverBuilder = serverBuilder.addService(new WalletExtensionApi());
+          serverBuilder = serverBuilder.addService(ServerInterceptors
+              .intercept(new WalletExtensionApi(), monitoringInterceptor));
         }
       } else {
-        serverBuilder = serverBuilder.addService(walletApi);
+        serverBuilder = serverBuilder.addService(ServerInterceptors
+            .intercept(walletApi, monitoringInterceptor));
       }
 
       // Set configs from config.conf or default value
