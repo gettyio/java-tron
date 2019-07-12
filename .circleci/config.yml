@@ -1,26 +1,67 @@
 version: 2
 jobs:
   build:
-    branches:
-      only:
-      - master
-      - develop
-      - addinCircleCI
-
     docker:
-    - image: circleci/openjdk:8-jdk-browsers
-    working_directory: ~/java-tron
+    - image: gettyio/tron-gradle
+    working_directory: /tmp/repo
     steps:
     - checkout
-    - run:
-        name: multi_os_result
-        command: echo "curl http://60.205.215.34/multi_os_result"
-#
-#    - run:
-#        name: Daily Build Report
-#        command: curl http://47.95.206.44:50080/Daily_Build_Task_Report
-#
-#    - run:
-#        name: Download Links
-#        command: sh DownloadLinks.sh
 
+    - run: ./gradlew clean build -x test
+
+    # tries to persist distribution libs to workspace
+    - persist_to_workspace:
+        root: /tmp/repo
+        paths:
+        - build/libs/FullNode.jar
+        - build/libs/SolidityNode.jar
+        - build/libs/KeystoreFactory.jar
+          
+  docker-build-push:
+    docker:
+    - image: docker:stable
+      environment:
+        $TRON_VERSION: 3.6.1
+
+    working_directory: /tmp/repo
+
+    steps:
+    - run: apk add --no-cache git
+
+    - checkout
+
+    - setup_remote_docker
+
+    # tries to restore distribution libs from workspace
+    - attach_workspace:
+        at: /tmp/repo
+
+    # logs in to docker hub then
+    # build and push image to docker hub
+    - run: |
+        docker login -u $DOCKER_LOGIN -p $DOCKER_PWD > /dev/null 2>&1
+        docker build -t $CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:$CIRCLE_SHA1 .
+        if [ "${CIRCLE_BRANCH}" == "master" ]; then
+          docker tag $CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:$CIRCLE_SHA1 $CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:latest
+          docker push $CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:latest
+          docker tag $CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:$CIRCLE_SHA1 $CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:$TRON_VERSION
+          docker push $CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:$TRON_VERSION
+        else
+          docker tag $CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:$CIRCLE_SHA1 $CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:$TRON_VERSION-$CIRCLE_BRANCH
+          docker push $CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:$TRON_VERSION-$CIRCLE_BRANCH
+        fi
+
+workflows:
+  version: 2
+  build-deploy:
+    jobs:
+    - build
+    - docker-build-push:
+        context: docker-hub-credentials
+        requires:
+        - build
+        filters:
+          branches:
+            only:
+            - develop
+            - master
