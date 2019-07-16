@@ -16,6 +16,19 @@ jobs:
         - build/libs/FullNode.jar
         - build/libs/SolidityNode.jar
         - build/libs/KeystoreFactory.jar
+
+  test:
+    docker:
+    - image: gettyio/tron-gradle
+    working_directory: /tmp/repo
+    steps:
+    - checkout
+
+    # tries to restore distribution libs from workspace
+    - attach_workspace:
+        at: /tmp/repo
+    
+    - run: ./gradlew test
           
   docker-build-push:
     docker:
@@ -56,10 +69,13 @@ workflows:
   build-deploy:
     jobs:
     - build
+    - test:
+        requires:
+        - build
     - docker-build-push:
         context: docker-hub-credentials
         requires:
-        - build
+        - test
         filters:
           branches:
             only:
