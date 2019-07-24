@@ -28,7 +28,7 @@ jobs:
     - attach_workspace:
         at: /tmp/repo
     
-    - run: gradle test --debug
+    - run: gradle test --debug --stacktrace
           
   docker-build-push:
     docker:
