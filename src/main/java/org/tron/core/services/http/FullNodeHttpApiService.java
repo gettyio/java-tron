@@ -3,12 +3,14 @@ package org.tron.core.services.http;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jetty.server.ConnectionLimit;
 import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.handler.StatisticsHandler;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.tron.common.application.Service;
 import org.tron.core.config.args.Args;
+import io.prometheus.client.jetty.JettyStatisticsCollector;
 
 @Component
 @Slf4j(topic = "API")
@@ -274,6 +276,15 @@ public class FullNodeHttpApiService implements Service {
           "/getdelegatedresourceaccountindex");
       context.addServlet(new ServletHolder(setAccountServlet), "/setaccountid");
       context.addServlet(new ServletHolder(getAccountByIdServlet), "/getaccountbyid");
+
+      if (Args.getInstance().isMetricsEnabled()) {
+        // Configure StatisticsHandler.
+        StatisticsHandler stats = new StatisticsHandler();
+        stats.setHandler(server.getHandler());
+        server.setHandler(stats);
+        // Register collector.
+        new JettyStatisticsCollector(stats).register();
+      }
 
       int maxHttpConnectNumber = Args.getInstance().getMaxHttpConnectNumber();
       if (maxHttpConnectNumber > 0) {

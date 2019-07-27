@@ -15,6 +15,7 @@ import org.tron.core.config.args.Args;
 import org.tron.core.services.RpcApiService;
 import org.tron.core.services.WitnessService;
 import org.tron.core.services.http.FullNodeHttpApiService;
+import org.tron.core.services.http.MetricsHttpService;
 import org.tron.core.services.interfaceOnSolidity.RpcApiServiceOnSolidity;
 import org.tron.core.services.interfaceOnSolidity.http.solidity.HttpApiOnSolidityService;
 
@@ -87,6 +88,12 @@ public class FullNode {
       HttpApiOnSolidityService httpApiOnSolidityService = context
           .getBean(HttpApiOnSolidityService.class);
       appT.addService(httpApiOnSolidityService);
+    }
+
+    // add metrics http endpoint
+    if (Args.getInstance().isMetricsEnabled()) {
+      MetricsHttpService httpMetricsService = context.getBean(MetricsHttpService.class);
+      appT.addService(httpMetricsService);
     }
 
     appT.initServices(cfgArgs);

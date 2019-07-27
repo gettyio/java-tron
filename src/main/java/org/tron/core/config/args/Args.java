@@ -276,6 +276,15 @@ public class Args {
 
   @Getter
   @Setter
+  @Parameter(names = {"--metrics"})
+  private boolean metricsEnabled = false;
+
+  @Getter
+  @Setter
+  private int metricsHttpPort;
+
+  @Getter
+  @Setter
   @Parameter(names = {"--rpc-thread"}, description = "Num of gRPC thread")
   private int rpcThreadNum;
 
@@ -515,6 +524,7 @@ public class Args {
     INSTANCE.rpcOnSolidityPort = 0;
     INSTANCE.fullNodeHttpPort = 0;
     INSTANCE.solidityHttpPort = 0;
+    INSTANCE.metricsHttpPort = 0;
     INSTANCE.maintenanceTimeInterval = 0;
     INSTANCE.proposalExpireTime = 0;
     INSTANCE.checkFrozenTime = 1;
@@ -783,6 +793,9 @@ public class Args {
 
     INSTANCE.solidityHttpPort =
         config.hasPath("node.http.solidityPort") ? config.getInt("node.http.solidityPort") : 8091;
+
+    INSTANCE.metricsHttpPort =
+        config.hasPath("node.http.metricsPort") ? config.getInt("node.http.metricsPort") : 19000;
 
     INSTANCE.rpcThreadNum =
         config.hasPath("node.rpc.thread") ? config.getInt("node.rpc.thread")

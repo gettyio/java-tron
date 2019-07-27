@@ -3,6 +3,7 @@ package org.tron.core.services.http.solidity;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jetty.server.ConnectionLimit;
 import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.handler.StatisticsHandler;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,7 +11,7 @@ import org.springframework.stereotype.Component;
 import org.tron.common.application.Service;
 import org.tron.core.config.args.Args;
 import org.tron.core.services.http.*;
-
+import io.prometheus.client.jetty.JettyStatisticsCollector;
 
 @Component
 @Slf4j(topic = "API")
@@ -143,6 +144,16 @@ public class SolidityNodeHttpApiService implements Service {
       }
 
       context.addServlet(new ServletHolder(getNodeInfoServlet), "/wallet/getnodeinfo");
+
+      if (Args.getInstance().isMetricsEnabled()) {
+        // Configure StatisticsHandler.
+        StatisticsHandler stats = new StatisticsHandler();
+        stats.setHandler(server.getHandler());
+        server.setHandler(stats);
+        // Register collector.
+        new JettyStatisticsCollector(stats).register();
+      }
+
       int maxHttpConnectNumber = Args.getInstance().getMaxHttpConnectNumber();
       if (maxHttpConnectNumber > 0) {
         server.addBean(new ConnectionLimit(maxHttpConnectNumber, server));
