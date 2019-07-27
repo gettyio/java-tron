@@ -1,9 +1,11 @@
 #!/bin/bash
-APP=$1
-APP=${APP:-"FullNode"}
-START_OPT=`echo ${@:2}`
-JAR_NAME="$APP.jar"
+START_OPT=`echo ${@:1}`
 
-java -Xmx6g -XX:+UseConcMarkSweepGC -XX:+CMSParallelRemarkEnabled \
-  -XX:ReservedCodeCacheSize=256m -XX:+CMSScavengeBeforeRemark \
-  -jar $JAR_NAME $START_OPT -c main_net_config.conf
+if [ -z "${JVM_ARGUMENTS}" ]; then
+    JVM_ARGUMENTS="-Xmx6g -XX:+UseConcMarkSweepGC -XX:+CMSParallelRemarkEnabled -XX:ReservedCodeCacheSize=256m -XX:+CMSScavengeBeforeRemark"
+    echo "Using default JVM arguments: ${JVM_ARGUMENTS}"
+fi
+
+echo "Starting with command:\n java ${JVM_ARGUMENTS} -jar FullNode.jar ${START_OPT} -c main_net_config.conf\n"
+
+java $JVM_ARGUMENTS -jar FullNode.jar $START_OPT -c main_net_config.conf
