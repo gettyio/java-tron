@@ -18,6 +18,7 @@ import org.tron.core.services.http.FullNodeHttpApiService;
 import org.tron.core.services.http.MetricsHttpService;
 import org.tron.core.services.interfaceOnSolidity.RpcApiServiceOnSolidity;
 import org.tron.core.services.interfaceOnSolidity.http.solidity.HttpApiOnSolidityService;
+import io.prometheus.client.hotspot.DefaultExports;
 
 @Slf4j(topic = "app")
 public class FullNode {
@@ -94,6 +95,7 @@ public class FullNode {
     if (Args.getInstance().isMetricsEnabled()) {
       MetricsHttpService httpMetricsService = context.getBean(MetricsHttpService.class);
       appT.addService(httpMetricsService);
+      DefaultExports.initialize();
     }
 
     appT.initServices(cfgArgs);
