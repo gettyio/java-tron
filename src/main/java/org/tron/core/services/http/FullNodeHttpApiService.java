@@ -277,12 +277,14 @@ public class FullNodeHttpApiService implements Service {
       context.addServlet(new ServletHolder(setAccountServlet), "/setaccountid");
       context.addServlet(new ServletHolder(getAccountByIdServlet), "/getaccountbyid");
 
-      // Configure StatisticsHandler.
-      StatisticsHandler stats = new StatisticsHandler();
-      stats.setHandler(server.getHandler());
-      server.setHandler(stats);
-      // Register collector.
-      new JettyStatisticsCollector(stats).register();
+      if (Args.getInstance().isMetricsEnabled()) {
+        // Configure StatisticsHandler.
+        StatisticsHandler stats = new StatisticsHandler();
+        stats.setHandler(server.getHandler());
+        server.setHandler(stats);
+        // Register collector.
+        new JettyStatisticsCollector(stats).register();
+      }
 
       int maxHttpConnectNumber = Args.getInstance().getMaxHttpConnectNumber();
       if (maxHttpConnectNumber > 0) {

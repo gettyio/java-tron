@@ -145,12 +145,14 @@ public class SolidityNodeHttpApiService implements Service {
 
       context.addServlet(new ServletHolder(getNodeInfoServlet), "/wallet/getnodeinfo");
 
-      // Configure StatisticsHandler.
-      StatisticsHandler stats = new StatisticsHandler();
-      stats.setHandler(server.getHandler());
-      server.setHandler(stats);
-      // Register collector.
-      new JettyStatisticsCollector(stats).register();
+      if (Args.getInstance().isMetricsEnabled()) {
+        // Configure StatisticsHandler.
+        StatisticsHandler stats = new StatisticsHandler();
+        stats.setHandler(server.getHandler());
+        server.setHandler(stats);
+        // Register collector.
+        new JettyStatisticsCollector(stats).register();
+      }
 
       int maxHttpConnectNumber = Args.getInstance().getMaxHttpConnectNumber();
       if (maxHttpConnectNumber > 0) {
