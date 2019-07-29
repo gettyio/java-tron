@@ -81,3 +81,4 @@ workflows:
             only:
             - develop
             - master
+            - lab
