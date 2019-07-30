@@ -111,16 +111,15 @@ import org.tron.protos.Protocol.AccountType;
 import org.tron.protos.Protocol.Transaction;
 import org.tron.protos.Protocol.Transaction.Contract;
 import org.tron.protos.Protocol.TransactionInfo;
-import io.prometheus.client.Gauge;
-
+import io.prometheus.client.Summary;
 
 @Slf4j(topic = "DB")
 @Component
 public class Manager {
   // custom metrics
-  static final Gauge blockNumber = Gauge.build()
+  static final Summary blockNumber = Summary.build()
      .name("tron_block_number").help("Tron Network Block number.").register();
-  static final Gauge transactionsSize = Gauge.build()
+  static final Summary transactionsSize = Summary.build()
      .name("tron_block_transactions_size").help("Transactions size of Tron Network Blocks.").register();
 
   // db store
@@ -1089,8 +1088,8 @@ public class Manager {
         ownerAddressSet.addAll(result);
       }
     }
-    blockNumber.set(block.getNum());
-    transactionsSize.set(block.getTransactions().size());
+    blockNumber.observe(block.getNum());
+    transactionsSize.observe(block.getTransactions().size());
     logger.info("pushBlock block number:{}, cost/txs:{}/{}",
         block.getNum(),
         System.currentTimeMillis() - start,
