@@ -1,16 +1,18 @@
 package org.tron.core.services.http;
 
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jetty.server.ConnectionLimit;
+import org.eclipse.jetty.server.Handler;
 import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.handler.StatisticsHandler;
+import org.eclipse.jetty.server.ServerConnector;
+import org.eclipse.jetty.server.handler.HandlerCollection;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.tron.common.application.Service;
 import org.tron.core.config.args.Args;
-import io.prometheus.client.jetty.JettyStatisticsCollector;
 import io.prometheus.client.exporter.MetricsServlet;
 
 @Component
@@ -19,7 +21,9 @@ public class MetricsHttpService implements Service {
 
   private int port = Args.getInstance().getMetricsHttpPort();
 
-  private Server server;
+  @Getter
+  private final Server server = new Server();
+  private final ServerConnector connector = new ServerConnector(server);
 
   @Override
   public void init() {
@@ -33,10 +37,15 @@ public class MetricsHttpService implements Service {
   @Override
   public void start() {
     try {
-      server = new Server(port);
+      connector.setPort(port);
+      server.addConnector(connector);
+
       ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);
       context.setContextPath("/");
       server.setHandler(context);
+
+      HandlerCollection handlers = new HandlerCollection();
+      handlers.setHandlers(new Handler[] { context });
 
       context.addServlet(new ServletHolder(new MetricsServlet()), "/metrics");
 
@@ -45,6 +54,7 @@ public class MetricsHttpService implements Service {
         server.addBean(new ConnectionLimit(maxHttpConnectNumber, server));
       }
 
+      server.setHandler(handlers);
       server.start();
     } catch (Exception e) {
       logger.debug("IOException: {}", e.getMessage());

@@ -1,15 +1,27 @@
 package org.tron.core.services.http;
 
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+
+import java.util.EnumSet;
+
+import javax.servlet.DispatcherType;
+
 import org.eclipse.jetty.server.ConnectionLimit;
+import org.eclipse.jetty.server.Handler;
 import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.ServerConnector;
+import org.eclipse.jetty.server.handler.HandlerCollection;
 import org.eclipse.jetty.server.handler.StatisticsHandler;
+import org.eclipse.jetty.servlet.FilterHolder;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.tron.common.application.Service;
 import org.tron.core.config.args.Args;
+
+import io.prometheus.client.filter.MetricsFilter;
 import io.prometheus.client.jetty.JettyStatisticsCollector;
 
 @Component
@@ -18,7 +30,12 @@ public class FullNodeHttpApiService implements Service {
 
   private int port = Args.getInstance().getFullNodeHttpPort();
 
-  private Server server;
+  @Getter
+  private final Server server = new Server();
+  private final ServerConnector connector = new ServerConnector(server);
+
+  private final HandlerCollection handlers = new HandlerCollection();
+  private final ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);
 
   @Autowired
   private GetAccountServlet getAccountServlet;
@@ -169,7 +186,6 @@ public class FullNodeHttpApiService implements Service {
   @Autowired
   private GetAccountByIdServlet getAccountByIdServlet;
 
-
   @Override
   public void init() {
 
@@ -182,10 +198,27 @@ public class FullNodeHttpApiService implements Service {
   @Override
   public void start() {
     try {
-      server = new Server(port);
-      ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);
+      connector.setPort(port);
+      server.addConnector(connector);
+
       context.setContextPath("/wallet/");
       server.setHandler(context);
+
+      handlers.setHandlers(new Handler[] { context });
+
+      if (Args.getInstance().isMetricsEnabled()) {
+        // Configure StatisticsHandler.
+        StatisticsHandler statsHandler = new StatisticsHandler();
+        statsHandler.setServer(server);
+        handlers.addHandler(statsHandler);
+
+        // Register collector.
+        new JettyStatisticsCollector(statsHandler).register();
+
+        FilterHolder promHolder = new FilterHolder(
+            new MetricsFilter("full_http_metrics_filter", "Full Node HTTP metrics", 4, null));
+        context.addFilter(promHolder, "/*", EnumSet.allOf(DispatcherType.class));
+      }
 
       context.addServlet(new ServletHolder(getAccountServlet), "/getaccount");
       context.addServlet(new ServletHolder(transferServlet), "/createtransaction");
@@ -205,12 +238,10 @@ public class FullNodeHttpApiService implements Service {
       context.addServlet(new ServletHolder(withdrawBalanceServlet), "/withdrawbalance");
       context.addServlet(new ServletHolder(updateAssetServlet), "/updateasset");
       context.addServlet(new ServletHolder(listNodesServlet), "/listnodes");
-      context.addServlet(
-          new ServletHolder(getAssetIssueByAccountServlet), "/getassetissuebyaccount");
+      context.addServlet(new ServletHolder(getAssetIssueByAccountServlet), "/getassetissuebyaccount");
       context.addServlet(new ServletHolder(getAccountNetServlet), "/getaccountnet");
       context.addServlet(new ServletHolder(getAssetIssueByNameServlet), "/getassetissuebyname");
-      context.addServlet(new ServletHolder(getAssetIssueListByNameServlet),
-          "/getassetissuelistbyname");
+      context.addServlet(new ServletHolder(getAssetIssueListByNameServlet), "/getassetissuelistbyname");
       context.addServlet(new ServletHolder(getAssetIssueByIdServlet), "/getassetissuebyid");
       context.addServlet(new ServletHolder(getNowBlockServlet), "/getnowblock");
       context.addServlet(new ServletHolder(getBlockByNumServlet), "/getblockbynum");
@@ -219,34 +250,25 @@ public class FullNodeHttpApiService implements Service {
       context.addServlet(new ServletHolder(getBlockByLatestNumServlet), "/getblockbylatestnum");
       context.addServlet(new ServletHolder(getTransactionByIdServlet), "/gettransactionbyid");
 
-      context.addServlet(
-          new ServletHolder(getTransactionInfoByIdServlet), "/gettransactioninfobyid");
-      context.addServlet(
-          new ServletHolder(getTransactionCountByBlockNumServlet),
-          "/gettransactioncountbyblocknum");
+      context.addServlet(new ServletHolder(getTransactionInfoByIdServlet), "/gettransactioninfobyid");
+      context.addServlet(new ServletHolder(getTransactionCountByBlockNumServlet), "/gettransactioncountbyblocknum");
       context.addServlet(new ServletHolder(listWitnessesServlet), "/listwitnesses");
       context.addServlet(new ServletHolder(getAssetIssueListServlet), "/getassetissuelist");
-      context.addServlet(
-          new ServletHolder(getPaginatedAssetIssueListServlet), "/getpaginatedassetissuelist");
-      context.addServlet(
-          new ServletHolder(getPaginatedProposalListServlet), "/getpaginatedproposallist");
-      context.addServlet(
-          new ServletHolder(getPaginatedExchangeListServlet), "/getpaginatedexchangelist");
+      context.addServlet(new ServletHolder(getPaginatedAssetIssueListServlet), "/getpaginatedassetissuelist");
+      context.addServlet(new ServletHolder(getPaginatedProposalListServlet), "/getpaginatedproposallist");
+      context.addServlet(new ServletHolder(getPaginatedExchangeListServlet), "/getpaginatedexchangelist");
       context.addServlet(new ServletHolder(totalTransactionServlet), "/totaltransaction");
-      context.addServlet(
-          new ServletHolder(getNextMaintenanceTimeServlet), "/getnextmaintenancetime");
+      context.addServlet(new ServletHolder(getNextMaintenanceTimeServlet), "/getnextmaintenancetime");
       context.addServlet(new ServletHolder(createAddressServlet), "/createaddress");
       context.addServlet(new ServletHolder(easyTransferServlet), "/easytransfer");
       context.addServlet(new ServletHolder(easyTransferByPrivateServlet), "/easytransferbyprivate");
       context.addServlet(new ServletHolder(easyTransferAssetServlet), "/easytransferasset");
-      context.addServlet(new ServletHolder(easyTransferAssetByPrivateServlet),
-          "/easytransferassetbyprivate");
+      context.addServlet(new ServletHolder(easyTransferAssetByPrivateServlet), "/easytransferassetbyprivate");
       context.addServlet(new ServletHolder(generateAddressServlet), "/generateaddress");
       context.addServlet(new ServletHolder(validateAddressServlet), "/validateaddress");
       context.addServlet(new ServletHolder(deployContractServlet), "/deploycontract");
       context.addServlet(new ServletHolder(triggerSmartContractServlet), "/triggersmartcontract");
-      context.addServlet(new ServletHolder(triggerConstantContractServlet),
-          "/triggerconstantcontract");
+      context.addServlet(new ServletHolder(triggerConstantContractServlet), "/triggerconstantcontract");
       context.addServlet(new ServletHolder(getContractServlet), "/getcontract");
       context.addServlet(new ServletHolder(clearABIServlet), "/clearabi");
       context.addServlet(new ServletHolder(proposalCreateServlet), "/proposalcreate");
@@ -265,32 +287,22 @@ public class FullNodeHttpApiService implements Service {
       context.addServlet(new ServletHolder(addTransactionSignServlet), "/addtransactionsign");
       context.addServlet(new ServletHolder(getTransactionSignWeightServlet), "/getsignweight");
       context.addServlet(new ServletHolder(getTransactionApprovedListServlet), "/getapprovedlist");
-      context.addServlet(new ServletHolder(accountPermissionUpdateServlet),
-          "/accountpermissionupdate");
+      context.addServlet(new ServletHolder(accountPermissionUpdateServlet), "/accountpermissionupdate");
       context.addServlet(new ServletHolder(getNodeInfoServlet), "/getnodeinfo");
       context.addServlet(new ServletHolder(updateSettingServlet), "/updatesetting");
       context.addServlet(new ServletHolder(updateEnergyLimitServlet), "/updateenergylimit");
       context.addServlet(new ServletHolder(getDelegatedResourceServlet), "/getdelegatedresource");
-      context.addServlet(
-          new ServletHolder(getDelegatedResourceAccountIndexServlet),
+      context.addServlet(new ServletHolder(getDelegatedResourceAccountIndexServlet),
           "/getdelegatedresourceaccountindex");
       context.addServlet(new ServletHolder(setAccountServlet), "/setaccountid");
       context.addServlet(new ServletHolder(getAccountByIdServlet), "/getaccountbyid");
-
-      if (Args.getInstance().isMetricsEnabled()) {
-        // Configure StatisticsHandler.
-        StatisticsHandler stats = new StatisticsHandler();
-        stats.setHandler(server.getHandler());
-        server.setHandler(stats);
-        // Register collector.
-        new JettyStatisticsCollector(stats).register();
-      }
 
       int maxHttpConnectNumber = Args.getInstance().getMaxHttpConnectNumber();
       if (maxHttpConnectNumber > 0) {
         server.addBean(new ConnectionLimit(maxHttpConnectNumber, server));
       }
 
+      server.setHandler(handlers);
       server.start();
     } catch (Exception e) {
       logger.debug("IOException: {}", e.getMessage());

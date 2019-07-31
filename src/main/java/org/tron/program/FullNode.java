@@ -3,7 +3,11 @@ package org.tron.program;
 import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.joran.JoranConfigurator;
 import java.io.File;
+
 import lombok.extern.slf4j.Slf4j;
+
+import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.util.thread.QueuedThreadPool;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.tron.common.application.Application;
@@ -18,7 +22,9 @@ import org.tron.core.services.http.FullNodeHttpApiService;
 import org.tron.core.services.http.MetricsHttpService;
 import org.tron.core.services.interfaceOnSolidity.RpcApiServiceOnSolidity;
 import org.tron.core.services.interfaceOnSolidity.http.solidity.HttpApiOnSolidityService;
+
 import io.prometheus.client.hotspot.DefaultExports;
+import io.prometheus.client.jetty.QueuedThreadPoolStatisticsCollector;
 
 @Slf4j(topic = "app")
 public class FullNode {
@@ -62,8 +68,7 @@ public class FullNode {
 
     DefaultListableBeanFactory beanFactory = new DefaultListableBeanFactory();
     beanFactory.setAllowCircularReferences(false);
-    TronApplicationContext context =
-        new TronApplicationContext(beanFactory);
+    TronApplicationContext context = new TronApplicationContext(beanFactory);
     context.register(DefaultConfig.class);
 
     context.refresh();
@@ -81,21 +86,41 @@ public class FullNode {
     FullNodeHttpApiService httpApiService = context.getBean(FullNodeHttpApiService.class);
     appT.addService(httpApiService);
 
-    // fullnode and soliditynode fuse together, provide solidity rpc and http server on the fullnode.
+    HttpApiOnSolidityService httpApiOnSolidityService = null;
+
+    // fullnode and soliditynode fuse together, provide solidity rpc and http server
+    // on the fullnode.
     if (Args.getInstance().getStorage().getDbVersion() == 2) {
-      RpcApiServiceOnSolidity rpcApiServiceOnSolidity = context
-          .getBean(RpcApiServiceOnSolidity.class);
+      RpcApiServiceOnSolidity rpcApiServiceOnSolidity = context.getBean(RpcApiServiceOnSolidity.class);
       appT.addService(rpcApiServiceOnSolidity);
-      HttpApiOnSolidityService httpApiOnSolidityService = context
-          .getBean(HttpApiOnSolidityService.class);
+      httpApiOnSolidityService = context.getBean(HttpApiOnSolidityService.class);
       appT.addService(httpApiOnSolidityService);
     }
 
     // add metrics http endpoint
     if (Args.getInstance().isMetricsEnabled()) {
+      // instantiate http metrics service from bean
       MetricsHttpService httpMetricsService = context.getBean(MetricsHttpService.class);
-      appT.addService(httpMetricsService);
+
+      Server metricsServer = httpMetricsService.getServer();
+      Server apiServer = httpApiService.getServer();
+      Server apiOnSolidityServer = httpApiOnSolidityService.getServer();
+
+      // instantiate queue stats collector with metrics and full-node listeners by
+      // default
+      QueuedThreadPoolStatisticsCollector queueStatsCollector = new QueuedThreadPoolStatisticsCollector()
+          .add((QueuedThreadPool) metricsServer.getThreadPool(), "metrics-http-listener")
+          .add((QueuedThreadPool) apiServer.getThreadPool(), "full-node-http-listener");
+          
+      // adds solidity api if enabled
+      if (Args.getInstance().getStorage().getDbVersion() == 2)
+        queueStatsCollector.add((QueuedThreadPool) apiOnSolidityServer.getThreadPool(), "solidity-http-listener");
+      
+      queueStatsCollector.register();
       DefaultExports.initialize();
+
+      // adds metrics service to service chain
+      appT.addService(httpMetricsService);
     }
 
     appT.initServices(cfgArgs);

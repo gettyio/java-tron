@@ -1,8 +1,18 @@
 package org.tron.core.services.interfaceOnSolidity.http.solidity;
 
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+
+import java.util.EnumSet;
+
+import javax.servlet.DispatcherType;
+
 import org.eclipse.jetty.server.ConnectionLimit;
+import org.eclipse.jetty.server.Handler;
 import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.ServerConnector;
+import org.eclipse.jetty.server.handler.HandlerCollection;
+import org.eclipse.jetty.servlet.FilterHolder;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,12 +20,19 @@ import org.tron.common.application.Service;
 import org.tron.core.config.args.Args;
 import org.tron.core.services.interfaceOnSolidity.http.*;
 
+import io.prometheus.client.filter.MetricsFilter;
+
 @Slf4j(topic = "API")
 public class HttpApiOnSolidityService implements Service {
 
   private int port = Args.getInstance().getSolidityHttpPort();
+  
+  @Getter
+  private final Server server = new Server();
+  private final ServerConnector connector = new ServerConnector(server);
 
-  private Server server;
+  private final HandlerCollection handlers = new HandlerCollection();
+  private final ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);
 
   @Autowired
   private GetAccountOnSolidityServlet accountOnSolidityServlet;
@@ -41,15 +58,13 @@ public class HttpApiOnSolidityService implements Service {
   @Autowired
   private GetDelegatedResourceOnSolidityServlet getDelegatedResourceOnSolidityServlet;
   @Autowired
-  private GetDelegatedResourceAccountIndexOnSolidityServlet
-      getDelegatedResourceAccountIndexOnSolidityServlet;
+  private GetDelegatedResourceAccountIndexOnSolidityServlet getDelegatedResourceAccountIndexOnSolidityServlet;
   @Autowired
   private GetExchangeByIdOnSolidityServlet getExchangeByIdOnSolidityServlet;
   @Autowired
   private ListExchangesOnSolidityServlet listExchangesOnSolidityServlet;
   @Autowired
-  private GetTransactionCountByBlockNumOnSolidityServlet
-      getTransactionCountByBlockNumOnSolidityServlet;
+  private GetTransactionCountByBlockNumOnSolidityServlet getTransactionCountByBlockNumOnSolidityServlet;
   @Autowired
   private GetAssetIssueByNameOnSolidityServlet getAssetIssueByNameOnSolidityServlet;
   @Autowired
@@ -78,62 +93,63 @@ public class HttpApiOnSolidityService implements Service {
   @Override
   public void start() {
     try {
-      server = new Server(port);
-      ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);
+      connector.setPort(port);
+      server.addConnector(connector);
+      
+      // sets context path and set it as server a server handler
       context.setContextPath("/");
       server.setHandler(context);
+      
+      // create a handler collection and set context as default in list
+      handlers.setHandlers(new Handler[] { context });
+
+      if (Args.getInstance().isMetricsEnabled()) {
+        FilterHolder promHolder = new FilterHolder(
+            new MetricsFilter("solidity_http_metrics_filter", "Solidity HTTP metrics", 4, null));
+        context.addFilter(promHolder, "/*", EnumSet.allOf(DispatcherType.class));
+      }
 
       // same as FullNode
       context.addServlet(new ServletHolder(accountOnSolidityServlet), "/walletsolidity/getaccount");
-      context.addServlet(new ServletHolder(listWitnessesOnSolidityServlet),
-          "/walletsolidity/listwitnesses");
-      context.addServlet(new ServletHolder(getAssetIssueListOnSolidityServlet),
-          "/walletsolidity/getassetissuelist");
+      context.addServlet(new ServletHolder(listWitnessesOnSolidityServlet), "/walletsolidity/listwitnesses");
+      context.addServlet(new ServletHolder(getAssetIssueListOnSolidityServlet), "/walletsolidity/getassetissuelist");
       context.addServlet(new ServletHolder(getPaginatedAssetIssueListOnSolidityServlet),
           "/walletsolidity/getpaginatedassetissuelist");
       context.addServlet(new ServletHolder(getAssetIssueByNameOnSolidityServlet),
           "/walletsolidity/getassetissuebyname");
-      context.addServlet(new ServletHolder(getAssetIssueByIdOnSolidityServlet),
-          "/walletsolidity/getassetissuebyid");
+      context.addServlet(new ServletHolder(getAssetIssueByIdOnSolidityServlet), "/walletsolidity/getassetissuebyid");
       context.addServlet(new ServletHolder(getAssetIssueListByNameOnSolidityServlet),
           "/walletsolidity/getassetissuelistbyname");
-      context.addServlet(new ServletHolder(getNowBlockOnSolidityServlet),
-          "/walletsolidity/getnowblock");
-      context.addServlet(new ServletHolder(getBlockByNumOnSolidityServlet),
-          "/walletsolidity/getblockbynum");
+      context.addServlet(new ServletHolder(getNowBlockOnSolidityServlet), "/walletsolidity/getnowblock");
+      context.addServlet(new ServletHolder(getBlockByNumOnSolidityServlet), "/walletsolidity/getblockbynum");
       context.addServlet(new ServletHolder(getDelegatedResourceOnSolidityServlet),
           "/walletsolidity/getdelegatedresource");
       context.addServlet(new ServletHolder(getDelegatedResourceAccountIndexOnSolidityServlet),
           "/walletsolidity/getdelegatedresourceaccountindex");
-      context.addServlet(new ServletHolder(getExchangeByIdOnSolidityServlet),
-          "/walletsolidity/getexchangebyid");
-      context.addServlet(new ServletHolder(listExchangesOnSolidityServlet),
-          "/walletsolidity/listexchanges");
-      context.addServlet(new ServletHolder(getAccountByIdOnSolidityServlet),
-          "/walletsolidity/getaccountbyid");
-      context.addServlet(new ServletHolder(getBlockByIdOnSolidityServlet),
-          "/walletsolidity/getblockbyid");
+      context.addServlet(new ServletHolder(getExchangeByIdOnSolidityServlet), "/walletsolidity/getexchangebyid");
+      context.addServlet(new ServletHolder(listExchangesOnSolidityServlet), "/walletsolidity/listexchanges");
+      context.addServlet(new ServletHolder(getAccountByIdOnSolidityServlet), "/walletsolidity/getaccountbyid");
+      context.addServlet(new ServletHolder(getBlockByIdOnSolidityServlet), "/walletsolidity/getblockbyid");
       context.addServlet(new ServletHolder(getBlockByLimitNextOnSolidityServlet),
           "/walletsolidity/getblockbylimitnext");
       context.addServlet(new ServletHolder(getBlockByLatestNumOnSolidityServlet),
           "/walletsolidity/getblockbylatestnum");
 
       // only for SolidityNode
-      context.addServlet(new ServletHolder(getTransactionByIdOnSolidityServlet),
-          "/walletsolidity/gettransactionbyid");
-      context
-          .addServlet(new ServletHolder(getTransactionInfoByIdOnSolidityServlet),
-              "/walletsolidity/gettransactioninfobyid");
+      context.addServlet(new ServletHolder(getTransactionByIdOnSolidityServlet), "/walletsolidity/gettransactionbyid");
+      context.addServlet(new ServletHolder(getTransactionInfoByIdOnSolidityServlet),
+          "/walletsolidity/gettransactioninfobyid");
 
-      context
-          .addServlet(new ServletHolder(getTransactionCountByBlockNumOnSolidityServlet),
-              "/walletsolidity/gettransactioncountbyblocknum");
+      context.addServlet(new ServletHolder(getTransactionCountByBlockNumOnSolidityServlet),
+          "/walletsolidity/gettransactioncountbyblocknum");
 
       context.addServlet(new ServletHolder(getNodeInfoOnSolidityServlet), "/wallet/getnodeinfo");
       int maxHttpConnectNumber = Args.getInstance().getMaxHttpConnectNumber();
       if (maxHttpConnectNumber > 0) {
         server.addBean(new ConnectionLimit(maxHttpConnectNumber, server));
       }
+
+      server.setHandler(handlers);
       server.start();
     } catch (Exception e) {
       logger.debug("IOException: {}", e.getMessage());
