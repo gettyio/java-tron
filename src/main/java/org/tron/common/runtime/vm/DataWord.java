@@ -45,7 +45,7 @@ public class DataWord implements Comparable<DataWord> {
   public static final BigInteger _2_256 = BigInteger.valueOf(2).pow(256);
   public static final BigInteger MAX_VALUE = _2_256.subtract(BigInteger.ONE);
   // TODO not safe
-  public static final DataWord ZERO = new DataWord(new byte[32]);      // don't push it in to the stack
+  public static final DataWord ZERO = new DataWord(new byte[WORD_SIZE]);      // don't push it in to the stack
 
   public static DataWord ONE() {
     return DataWord.of((byte)1);
@@ -510,5 +510,15 @@ public class DataWord implements Comparable<DataWord> {
 
   public static long sizeInWords(long bytesSize) {
     return bytesSize == 0 ? 0 : (bytesSize - 1) / WORD_SIZE + 1;
+  }
+
+  public static DataWord[] parseArray(byte[] data) {
+    int len = data.length / WORD_SIZE;
+    DataWord[] words = new DataWord[len];
+    for (int i = 0; i < len; i++) {
+      byte[] bytes = Arrays.copyOfRange(data, i * WORD_SIZE, (i + 1) * WORD_SIZE);
+      words[i] = new DataWord(bytes);
+    }
+    return words;
   }
 }

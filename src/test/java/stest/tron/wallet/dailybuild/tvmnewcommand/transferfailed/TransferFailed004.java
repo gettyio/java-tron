@@ -109,7 +109,7 @@ public class TransferFailed004 {
     Assert.assertTrue(PublicMethed
         .sendcoin(contractAddress, 1000000L, testNetAccountAddress, testNetAccountKey,
             blockingStubFull));
-
+    PublicMethed.waitProduceNextBlock(blockingStubFull);
     Account info;
 
     AccountResourceMessage resourceInfo = PublicMethed.getAccountResource(contractExcAddress,
@@ -246,6 +246,8 @@ public class TransferFailed004 {
    */
   @AfterClass
   public void shutdown() throws InterruptedException {
+    PublicMethed
+        .freedResource(contractAddress, contractExcKey, testNetAccountAddress, blockingStubFull);
     if (channelFull != null) {
       channelFull.shutdown().awaitTermination(5, TimeUnit.SECONDS);
     }
